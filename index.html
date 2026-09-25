@@ -6,32 +6,32 @@
     <title>3D Doğalgaz (Metan) Yanma Tepkimesi Modeli</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #070a12; color: #fff; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #fff; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
         #ui-panel {
             position: absolute; top: 15px; left: 15px; width: 350px; max-height: calc(100vh - 30px); overflow-y: auto;
-            background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
-            padding: 20px; border-radius: 14px; border: 1px solid rgba(249, 115, 22, 0.3);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            background: rgba(22, 27, 34, 0.92); backdrop-filter: blur(12px);
+            padding: 20px; border-radius: 14px; border: 1px solid rgba(249, 115, 22, 0.35);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
         }
         h2 { margin-top: 0; font-size: 1.1rem; color: #f97316; text-transform: uppercase; letter-spacing: 1px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
-        .task-title { font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 12px; font-style: italic; }
+        .task-title { font-size: 0.8rem; color: #8b949e; text-align: center; margin-bottom: 12px; font-style: italic; }
         #equation { text-align: center; font-size: 1.1rem; font-weight: bold; color: #facc15; background: rgba(250, 204, 21, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px dashed rgba(250, 204, 21, 0.4); }
         .btn-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
         .btn { padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: #fff; font-size: 0.9rem; transition: 0.2s; }
         .btn-burn { background: #ea580c; }
         .btn-burn:hover { background: #f97316; }
-        .btn-reset { background: #475569; }
-        .btn-reset:hover { background: #64748b; }
+        .btn-reset { background: #30363d; }
+        .btn-reset:hover { background: #484f58; }
         .control-group { margin-bottom: 12px; }
-        label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; color: #cbd5e1; }
+        label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; color: #c9d1d9; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: #f97316; }
         .metric-group { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; }
         .metric { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; }
         .metric-val { color: #38bdf8; font-weight: bold; }
         #instructions {
             position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.75); padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; color: #fdba74; border: 1px solid rgba(249,115,22,0.3); pointer-events: none;
+            background: rgba(22, 27, 34, 0.85); padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; color: #fdba74; border: 1px solid rgba(249,115,22,0.3); pointer-events: none;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -46,7 +46,7 @@
         <div id="equation">CH₄ + 2O₂ → CO₂ + 2H₂O</div>
 
         <div class="btn-group">
-            <button class="btn btn-burn" id="reactBtn">🔥 Aktivasyon Enerjisi Ver (Tepkimeyi Başlat)</button>
+            <button class="btn btn-burn" id="reactBtn">🔥 Yavaşça Birleştir / Tepkimeyi Başlat</button>
             <button class="btn btn-reset" id="resetBtn">🔄 Sıfırla (Giren Maddeler)</button>
         </div>
 
@@ -68,8 +68,8 @@
     <script>
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x070a12);
-        scene.fog = new THREE.FogExp2(0x070a12, 0.02);
+        scene.background = new THREE.Color(0x0a1128); // Derin uzay laciverti / koyu mavi tema
+        scene.fog = new THREE.FogExp2(0x0a1128, 0.02);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 3, 11);
@@ -82,121 +82,167 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // Işıklar
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
 
         const fireLight = new THREE.PointLight(0xf97316, 2, 50);
         fireLight.position.set(0, 5, 5);
         scene.add(fireLight);
 
-        function createAtom(color, radius) {
+        // Atom Nesnesi Oluşturucu
+        function createAtomMesh(color, radius) {
             const geo = new THREE.SphereGeometry(radius, 32, 32);
             const mat = new THREE.MeshPhongMaterial({ color: color, shininess: 90 });
             return new THREE.Mesh(geo, mat);
         }
 
-        function createBond(p1, p2) {
+        // Bağ Nesnesi
+        function createBondMesh() {
+            const geo = new THREE.CylinderGeometry(0.07, 0.07, 1, 16);
+            const mat = new THREE.MeshPhongMaterial({ color: 0xcbd5e1, transparent: true, opacity: 0.9 });
+            return new THREE.Mesh(geo, mat);
+        }
+
+        function updateBondMesh(bond, p1, p2) {
             const dir = new THREE.Vector3().subVectors(p2, p1);
             const len = dir.length();
-            const geo = new THREE.CylinderGeometry(0.07, 0.07, len, 16);
-            const mat = new THREE.MeshPhongMaterial({ color: 0xcbd5e1 });
-            const bond = new THREE.Mesh(geo, mat);
+            bond.scale.set(1, len, 1);
             bond.position.copy(p1).add(p2).multiplyScalar(0.5);
             bond.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-            return bond;
         }
 
-        let mainGroup = new THREE.Group();
-        scene.add(mainGroup);
+        // ATOM TANIMLARI (Tepkime Öncesi ve Sonrası Pozisyonlar)
+        // Karbon (1), Oksijen (4), Hidrojen (4)
+        const C = createAtomMesh(0x334155, 0.62);
+        const O1 = createAtomMesh(0xef4444, 0.52);
+        const O2 = createAtomMesh(0xef4444, 0.52);
+        const O3 = createAtomMesh(0xef4444, 0.52);
+        const O4 = createAtomMesh(0xef4444, 0.52);
 
-        let isReacted = false;
-        let speed = 0.015;
+        const H1 = createAtomMesh(0xf8fafc, 0.32);
+        const H2 = createAtomMesh(0xf8fafc, 0.32);
+        const H3 = createAtomMesh(0xf8fafc, 0.32);
+        const H4 = createAtomMesh(0xf8fafc, 0.32);
 
-        function buildScene() {
-            scene.remove(mainGroup);
-            mainGroup = new THREE.Group();
+        const atoms = [C, O1, O2, O3, O4, H1, H2, H3, H4];
+        atoms.forEach(a => scene.add(a));
 
-            if (!isReacted) {
-                const ch4Group = new THREE.Group();
-                const C = createAtom(0x334155, 0.65);
-                const h1 = createAtom(0xf8fafc, 0.32); h1.position.set(0, 1.1, 0);
-                const h2 = createAtom(0xf8fafc, 0.32); h2.position.set(1.0, -0.4, 0);
-                const h3 = createAtom(0xf8fafc, 0.32); h3.position.set(-0.5, -0.4, 0.85);
-                const h4 = createAtom(0xf8fafc, 0.32); h4.position.set(-0.5, -0.4, -0.85);
+        // Bağlar
+        const bonds = [];
+        for(let i=0; i<8; i++) {
+            const b = createBondMesh();
+            bonds.push(b);
+            scene.add(b);
+        }
 
-                ch4Group.add(C, h1, h2, h3, h4);
-                [h1, h2, h3, h4].forEach(h => ch4Group.add(createBond(C.position, h.position)));
-                ch4Group.position.set(-3, 0, 0);
-                mainGroup.add(ch4Group);
+        // BAŞLANGIÇ POZİSYONLARI (GİRENLER: CH4 + 2O2)
+        const startPos = {
+            C: new THREE.Vector3(-3, 0, 0),
+            H1: new THREE.Vector3(-3, 1.1, 0),
+            H2: new THREE.Vector3(-2.0, -0.4, 0),
+            H3: new THREE.Vector3(-3.5, -0.4, 0.85),
+            H4: new THREE.Vector3(-3.5, -0.4, -0.85),
 
-                function createO2(x, y, z) {
-                    const o2Group = new THREE.Group();
-                    const o1 = createAtom(0xef4444, 0.55); o1.position.set(-0.6, 0, 0);
-                    const o2 = createAtom(0xef4444, 0.55); o2.position.set(0.6, 0, 0);
-                    o2Group.add(o1, o2, createBond(o1.position, o2.position));
-                    o2Group.position.set(x, y, z);
-                    return o2Group;
-                }
+            O1: new THREE.Vector3(1.9, 1.2, 0),
+            O2: new THREE.Vector3(3.1, 1.2, 0),
+            O3: new THREE.Vector3(1.9, -1.2, 0),
+            O4: new THREE.Vector3(3.1, -1.2, 0)
+        };
 
-                mainGroup.add(createO2(2.5, 1.2, 0));
-                mainGroup.add(createO2(2.5, -1.2, 0));
+        // HEDEF POZİSYONLAR (ÜRÜNLER: CO2 + 2H2O)
+        const endPos = {
+            C: new THREE.Vector3(-2.5, 0, 0),
+            O1: new THREE.Vector3(-4.0, 0, 0),
+            O2: new THREE.Vector3(-1.0, 0, 0),
 
-                document.getElementById('statusVal').innerText = "Girenler (CH₄ + 2O₂)";
-                document.getElementById('statusVal').style.color = "#facc15";
+            O3: new THREE.Vector3(2.2, 1.2, 0),
+            H1: new THREE.Vector3(1.3, 1.8, 0),
+            H2: new THREE.Vector3(3.1, 1.8, 0),
+
+            O4: new THREE.Vector3(2.2, -1.2, 0),
+            H3: new THREE.Vector3(1.3, -0.6, 0),
+            H4: new THREE.Vector3(3.1, -0.6, 0)
+        };
+
+        let progress = 0; // 0: Girenler, 1: Ürünler
+        let targetProgress = 0;
+        let speed = 0.012;
+
+        function setAtomPositions(t) {
+            // Konumları yavaşça lerp (yumuşak geçiş) ile bağla
+            C.position.lerpVectors(startPos.C, endPos.C, t);
+            O1.position.lerpVectors(startPos.O1, endPos.O1, t);
+            O2.position.lerpVectors(startPos.O2, endPos.O2, t);
+            O3.position.lerpVectors(startPos.O3, endPos.O3, t);
+            O4.position.lerpVectors(startPos.O4, endPos.O4, t);
+
+            H1.position.lerpVectors(startPos.H1, endPos.H1, t);
+            H2.position.lerpVectors(startPos.H2, endPos.H2, t);
+            H3.position.lerpVectors(startPos.H3, endPos.H3, t);
+            H4.position.lerpVectors(startPos.H4, endPos.H4, t);
+
+            // Bağ Dinamikleri
+            if (t < 0.5) {
+                // Giren Bağları
+                updateBondMesh(bonds[0], C.position, H1.position);
+                updateBondMesh(bonds[1], C.position, H2.position);
+                updateBondMesh(bonds[2], C.position, H3.position);
+                updateBondMesh(bonds[3], C.position, H4.position);
+                updateBondMesh(bonds[4], O1.position, O2.position);
+                updateBondMesh(bonds[5], O3.position, O4.position);
+                bonds[6].visible = false;
+                bonds[7].visible = false;
             } else {
-                const co2Group = new THREE.Group();
-                const C = createAtom(0x334155, 0.6);
-                const o1 = createAtom(0xef4444, 0.55); o1.position.set(-1.5, 0, 0);
-                const o2 = createAtom(0xef4444, 0.55); o2.position.set(1.5, 0, 0);
-                co2Group.add(C, o1, o2, createBond(C.position, o1.position), createBond(C.position, o2.position));
-                co2Group.position.set(-2.5, 0, 0);
-                mainGroup.add(co2Group);
-
-                function createH2O(x, y, z) {
-                    const h2oGroup = new THREE.Group();
-                    const O = createAtom(0xef4444, 0.55);
-                    const h1 = createAtom(0xf8fafc, 0.32); h1.position.set(-0.9, 0.6, 0);
-                    const h2 = createAtom(0xf8fafc, 0.32); h2.position.set(0.9, 0.6, 0);
-                    h2oGroup.add(O, h1, h2, createBond(O.position, h1.position), createBond(O.position, h2.position));
-                    h2oGroup.position.set(x, y, z);
-                    return h2oGroup;
-                }
-
-                mainGroup.add(createH2O(2.2, 1.2, 0));
-                mainGroup.add(createH2O(2.2, -1.2, 0));
-
-                document.getElementById('statusVal').innerText = "Ürünler Oluştu (CO₂ + 2H₂O)";
-                document.getElementById('statusVal').style.color = "#4ade80";
+                // Ürün Bağları (CO2 ve 2H2O)
+                updateBondMesh(bonds[0], C.position, O1.position);
+                updateBondMesh(bonds[1], C.position, O2.position);
+                updateBondMesh(bonds[2], O3.position, H1.position);
+                updateBondMesh(bonds[3], O3.position, H2.position);
+                updateBondMesh(bonds[4], O4.position, H3.position);
+                updateBondMesh(bonds[5], O4.position, H4.position);
+                bonds[6].visible = false;
+                bonds[7].visible = false;
             }
-
-            scene.add(mainGroup);
         }
 
-        buildScene();
+        setAtomPositions(0);
 
+        // Buton Olayları
         document.getElementById('reactBtn').addEventListener('click', () => {
-            if(!isReacted) {
-                isReacted = true;
-                buildScene();
-            }
+            targetProgress = 1;
+            document.getElementById('statusVal').innerText = "Tepkime Gerçekleşiyor...";
+            document.getElementById('statusVal').style.color = "#f97316";
         });
 
         document.getElementById('resetBtn').addEventListener('click', () => {
-            isReacted = false;
-            buildScene();
+            targetProgress = 0;
+            document.getElementById('statusVal').innerText = "Girenler (CH₄ + 2O₂)";
+            document.getElementById('statusVal').style.color = "#facc15";
         });
 
         document.getElementById('tempSlider').addEventListener('input', (e) => {
             let val = +e.target.value;
             document.getElementById('temp-val').innerText = val + '°C';
-            speed = 0.005 + (val / 100) * 0.03;
+            speed = 0.005 + (val / 100) * 0.025;
         });
 
+        // Animasyon Döngüsü
         function animate() {
             requestAnimationFrame(animate);
 
-            mainGroup.rotation.y += speed;
-            mainGroup.rotation.x += speed * 0.2;
+            // Yumuşak İlerleme Animasyonu
+            if (Math.abs(progress - targetProgress) > 0.001) {
+                progress += (targetProgress - progress) * 0.02;
+                setAtomPositions(progress);
+
+                if (progress > 0.95 && targetProgress === 1) {
+                    document.getElementById('statusVal').innerText = "Ürünler Oluştu (CO₂ + 2H₂O)";
+                    document.getElementById('statusVal').style.color = "#4ade80";
+                }
+            }
+
+            scene.rotation.y += 0.003;
 
             controls.update();
             renderer.render(scene, camera);
